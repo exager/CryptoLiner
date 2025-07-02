@@ -3,6 +3,7 @@ import json
 import requests
 import pandas as pd
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
@@ -12,7 +13,7 @@ def inject_year():
 
 @app.route("/")
 def home():
-    url = "https://crypto-analyzer-service-1073952782451.us-central1.run.app/get-latest-data"
+    url = os.getenv('BACKEND_URL') + '/get-latest-data'
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()  
@@ -25,34 +26,34 @@ def home():
     else:
         return render_template("error.html", message = "Wrong EndPoint, Page Not Found::::")
 
-@app.route("/coin/<symbol>/details")
-def chart_page(symbol):
-    url = "https://crypto-analyzer-service-1073952782451.us-central1.run.app/coin/" + symbol
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = pd.DataFrame(response.json())
+# @app.route("/coin/<symbol>/details")
+# def chart_page(symbol):
+#     url = os.getenv('BACKEND_URL') + "/coin/" + symbol
+#     response = requests.get(url)
+#     if response.status_code == 200:
+#         data = pd.DataFrame(response.json())
 
-        # Getting the timestamp of the records
-        data['timestamp'] = pd.to_datetime(data['record_date'] + ' ' + data['record_time'])
-        data.sort_values('timestamp', inplace=True)
+#         # Getting the timestamp of the records
+#         data['timestamp'] = pd.to_datetime(data['record_date'] + ' ' + data['record_time'])
+#         data.sort_values('timestamp', inplace=True)
 
-        # And the moving averages
-        data['ma_7'] = data['price'].rolling(window=7).mean()
-        data['ma_24'] = data['price'].rolling(window=24).mean() 
+#         # And the moving averages
+#         data['ma_7'] = data['price'].rolling(window=7).mean()
+#         data['ma_24'] = data['price'].rolling(window=24).mean() 
 
-        chart_data = {
-            "timestamps": (data["record_date"] + " " + data["record_time"]).tolist(),
-            "price": data['price'].tolist(),
-            "ma_7": data['price'].rolling(7).mean().tolist(),
-            "ma_24": data['price'].rolling(24).mean().tolist()
-        }
-        return render_template("coin_dashboard.html", chart_data=chart_data)
-    else:
-        return render_template("error.html", message=f"Could not find details for {symbol} cryptocurrency"), 404
+#         chart_data = {
+#             "timestamps": (data["record_date"] + " " + data["record_time"]).tolist(),
+#             "price": data['price'].tolist(),
+#             "ma_7": data['price'].rolling(7).mean().tolist(),
+#             "ma_24": data['price'].rolling(24).mean().tolist()
+#         }
+#         return render_template("coin_dashboard.html", chart_data=chart_data)
+#     else:
+#         return render_template("error.html", message=f"Could not find details for {symbol} cryptocurrency"), 404
 
 @app.route("/coin/<symbol>")
 def coin_details(symbol):
-    url = "https://crypto-analyzer-service-1073952782451.us-central1.run.app/coin/" + symbol
+    url = os.getenv('BACKEND_URL') + "/coin/" + symbol
     response = requests.get(url)
     if response.status_code == 200:
         
@@ -103,4 +104,4 @@ def comma_format(value):
 app.jinja_env.filters['comma_format'] = comma_format
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT',8080)))

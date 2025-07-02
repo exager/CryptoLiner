@@ -1,0 +1,233 @@
+{% extends 'layout.html' %}
+{% block title %}{{ coin.name }} Details{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Coin Header -->
+  <div class="row g-4 align-items-center mb-4">
+    <div class="col-lg-8">
+      <h1 class="display-5">{{ coin.name }} ({{ coin.symbol.upper() }})</h1>
+      <h4 class="{{ 'text-success' if coin.price_change_percentage_24h[-1] >= 0 else 'text-danger' }}">
+        ${{ coin.prices[-1] }} 
+        ({{ coin.price_change_percentage_24h[-1] }}%)
+      </h4>
+    </div>
+    <div class="col-lg-4 text-end">
+      <img src="{{ data.image }}" alt="{{ coin.name }}" class="img-fluid" style="height: 100px;">
+    </div>
+  </div>
+
+  <!-- Stats + Visuals -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-4">
+      <div class="card bg-gradient border-light text-white shadow-sm p-3 h-100">
+        <h5>📌 Coin Facts</h5>
+        <ul class="list-unstyled mt-3">
+          <li><strong>Rank:</strong> #{{ coin.rank }}</li>
+          <li><strong>Market Cap:</strong> ${{ coin.market_cap[-1] | int | comma_format }}</li>
+          <li><strong>24h Volume:</strong> ${{ coin.volume[-1] | int | comma_format }}</li>
+          <li><strong>Circulating Supply:</strong> {{ data.circulating_supply | int | comma_format or 'N/A' }}</li>
+        </ul>
+
+        <div class="mt-6">
+          <p class="text-end lh-base" style="margin-bottom: 0%;"><small>📈 ATH: ${{ data.ath }}</small></p>
+          <div class="progress mt-2" style="height: 8px;margin-top: 30%;">
+            {% set range = data.ath - data.atl %}
+            {% set position = ((data.current_price - data.atl) / range * 100) if range else 0 %}
+            <div class="progress-bar bg-success" style="width: {{ position|round(2) }}%"></div>
+          </div>
+          <p class="lh-lg"><small>📉 ATL: ${{ data.atl }}</small></p>
+          <small class="d-block text-muted mt-1">Current position: {{ position|round(1) }}%</small>
+        </div>
+         
+        <div class="mt-6">
+          <p class="text-end lh-base" style="margin-bottom: 0%;"><small>📈 24-h High: ${{ data.high_24h }}</small></p>
+          <div class="progress mt-2" style="height: 8px;">
+            {% set range = data.high_24h - data.low_24h %}
+            {% set position = ((data.current_price - data.low_24h) / range * 100) if range else 0 %}
+            <div class="progress-bar bg-success" style="width: {{ position|round(2) }}%"></div>
+          </div>
+          <p class="lh-lg"><small>📉 24-h Low: ${{ data.low_24h }}</small></p>
+          <small class="d-block text-muted mt-1">Current position: {{ position|round(1) }}%</small>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Placeholder for LLM insight -->
+    <div class="col-lg-8">
+      <div class="card bg-gradient border-light text-white shadow-sm p-4 h-100">
+        <h5>🤖 AI Insight</h5>
+        <p class="mt-3 text-muted">
+          <!-- Placeholder; you can later replace with actual LLM analysis -->
+          "{{ coin.name }} is showing a positive trend with increasing trading volume over the last few days. Based on 7-day MA, the coin is currently trading {{ 'above' if coin.prices[-1] > coin.ma_7[-1] else 'below' }} its average..."
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Range Selector -->
+  <div class="btn-group mb-3" role="group">
+    <button class="btn btn-outline-light range-btn" data-range="1">1D</button>
+    <button class="btn btn-outline-light range-btn" data-range="7">7D</button>
+    <button class="btn btn-outline-light range-btn" data-range="30">1M</button>
+    <button class="btn btn-outline-light range-btn" data-range="all">All</button>
+  </div>
+
+  <!-- Chart Section -->
+  <div class="card bg-dark p-4 border-light shadow mb-5">
+    <canvas id="priceChart" class="w-100" style="min-height: 400px;"></canvas>
+  </div>
+
+  <!-- Navigation Buttons -->
+  <div class="d-flex justify-content-between">
+    <a href="{{ url_for('home') }}" class="btn btn-secondary ">← Back to Overview</a>
+    <button class="btn btn-outline-info" onclick="downloadCSV()">📥 Download CSV</button>
+  </div>
+
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  let fullTimestamps = {{ coin.timestamps | tojson }};
+  let fullPrices = {{ coin.prices | tojson }};
+  let fullVolume = {{ coin.volume | tojson }};
+  let fullMa_7 = {{ coin.ma_7 | tojson }};
+  let fullMa_24 = {{ coin.ma_24 | tojson }};
+  let chart;
+
+  function renderChart(timestamps, prices, volume, ma_7, ma_24) {
+    const ctx = document.getElementById("priceChart").getContext("2d");
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: timestamps,
+        datasets: [
+          {
+            type: 'line',
+            label: 'Price ($)',
+            data: prices,
+            borderColor: '#00ffcc',
+            backgroundColor: 'transparent',
+            yAxisID: 'yPrice',
+            tension: 0.3,
+            fill: false,
+          },
+          {
+            type: 'line',
+            label: '7-day MA',
+            data: ma_7,
+            borderColor: 'orange',
+            borderDash: [5, 5],
+            backgroundColor: 'transparent',
+            yAxisID: 'yPrice',
+            tension: 0.3,
+            fill: false,
+          },
+          {
+            type: 'line',
+            label: '24-day MA',
+            data: ma_24,
+            borderColor: 'purple',
+            borderDash: [2, 2],
+            backgroundColor: 'transparent',
+            yAxisID: 'yPrice',
+            tension: 0.3,
+            fill: false,
+          },
+          {
+            type: 'bar',
+            label: 'Volume',
+            data: volume,
+            backgroundColor: 'rgba(0, 255, 204, 0.3)',
+            yAxisID: 'yVolume',
+            order: 2,
+          }
+        ]
+      },
+      options: {
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        scales: {
+          x: {
+            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+          },
+          yPrice: {
+            type: 'linear',
+            position: 'left',
+            beginAtZero: false,
+            title: { display: true, text: 'Price ($)' },
+            ticks: { color: '#00ffcc' },
+          },
+          yVolume: {
+            type: 'linear',
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            beginAtZero: false,
+            title: { display: true, text: 'Volume' },
+            ticks: { color: 'rgba(0, 255, 204, 0.7)' },
+          }
+        },
+        plugins: {
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) label += ': ';
+                label += context.dataset.type === 'bar'
+                  ? context.parsed.y.toLocaleString()
+                  : context.parsed.y.toFixed(2);
+                return label;
+              }
+            }
+          },
+          legend: { labels: { color: '#fff' } }
+        }
+      }
+    });
+  }
+
+  function sliceData(range) {
+    if (range === 'all') return [fullTimestamps, fullPrices, fullVolume, fullMa_7, fullMa_24];
+    const count = parseInt(range) * 24;
+    return [
+      fullTimestamps.slice(-count),
+      fullPrices.slice(-count),
+      fullVolume.slice(-count),
+      fullMa_7.slice(-count),
+      fullMa_24.slice(-count)
+    ];
+  }
+
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const range = btn.getAttribute('data-range');
+      const [timestamps, prices, volumes, ma_7s, ma_24s] = sliceData(range);
+      renderChart(timestamps, prices, volumes, ma_7s, ma_24s);
+    });
+  });
+
+  function downloadCSV() {
+    let csv = "Timestamp,Price,Volume,7MA,24MA\n";
+    for (let i = 0; i < fullTimestamps.length; i++) {
+      csv += `${fullTimestamps[i]},${fullPrices[i]},${fullVolume[i]},${fullMa_7[i]},${fullMa_24[i]}\n`;
+    }
+    const blob = new Blob([csv], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "{{ coin.symbol }}_prices.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  renderChart(fullTimestamps, fullPrices, fullVolume, fullMa_7, fullMa_24);
+</script>
+{% endblock %}
